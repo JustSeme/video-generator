@@ -1,0 +1,21 @@
+{
+  "name": "video-generator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/core": "^0.3.80",
+    "@langchain/openai": "^0.6.0",
+    "dotenv": "^16.4.5",
+    "langchain": "^0.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

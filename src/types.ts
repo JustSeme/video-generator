@@ -1,0 +1,29 @@
+export type Topic = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+export type Scene = {
+  id: string;
+  title: string;
+  text: string;
+  visual: string;
+  duration: number;
+};
+
+export type ProvidersConfig = {
+  llmScriptProvider: "openai" | "anthropic";
+  llmVisualProvider: "openai" | "anthropic";
+  ttsProvider: "elevenlabs" | "mock";
+  imageProvider: "openai" | "mock";
+};
+
+export type AppConfig = {
+  outputDir: string;
+  ffmpegBin: string;
+  totalDurationSec: number;
+  scenesCount: number;
+  cleanup: boolean;
+  providers: ProvidersConfig;
+};
