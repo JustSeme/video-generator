@@ -15,8 +15,8 @@ export type Scene = {
 export type ProvidersConfig = {
   llmScriptProvider: "openai" | "anthropic";
   llmVisualProvider: "openai" | "anthropic";
-  ttsProvider: "elevenlabs" | "mock";
-  imageProvider: "openai" | "mock";
+  ttsProvider: "elevenlabs";
+  imageProvider: "openai";
 };
 
 export type AppConfig = {

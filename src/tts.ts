@@ -1,7 +1,6 @@
-import fs from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "./exec.js";
-import { ensureDir } from "./utils.js";
 
 export type TtsProvider = "elevenlabs" | "mock";
 
@@ -12,14 +11,14 @@ export async function synthesizeToFile(params: {
   outFile: string;
   ffmpegBin: string;
 }): Promise<void> {
-  await ensureDir(path.dirname(params.outFile));
+  await mkdir(path.dirname(params.outFile), { recursive: true });
 
   if (params.provider === "elevenlabs") {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
 
     if (!apiKey) {
-      throw new Error("TTS_PROVIDER=elevenlabs, но не задан ELEVENLABS_API_KEY");
+      throw new Error("ELEVENLABS_API_KEY environment variable is required for elevenlabs TTS provider");
     }
 
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -31,7 +30,7 @@ export async function synthesizeToFile(params: {
       },
       body: JSON.stringify({
         text: params.text,
-        model_id: process.env.ELEVENLABS_MODEL_ID ?? "eleven_multilingual_v2",
+        model_id: "eleven_multilingual_v2",
         voice_settings: {
           stability: 0.4,
           similarity_boost: 0.8,
@@ -45,7 +44,7 @@ export async function synthesizeToFile(params: {
     }
 
     const buf = Buffer.from(await res.arrayBuffer());
-    await fs.writeFile(params.outFile, buf);
+    await writeFile(params.outFile, buf);
     return;
   }
 

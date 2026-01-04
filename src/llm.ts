@@ -1,5 +1,4 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import { tool } from "@langchain/core";
 import { ChatOpenAI } from "@langchain/openai";
 
 export type ChatProvider = "openai" | "anthropic";

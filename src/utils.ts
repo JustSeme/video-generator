@@ -1,13 +1,9 @@
-import fs from "node:fs/promises";
+import { access } from "node:fs/promises";
 import path from "node:path";
-
-export async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
 
 export async function fileExists(p: string) {
   try {
-    await fs.access(p);
+    await access(p);
     return true;
   } catch {
     return false;

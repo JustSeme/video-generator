@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Topic } from "./types.js";
 
@@ -14,7 +14,7 @@ export async function loadTopics(): Promise<Topic[]> {
   const filePath = path.resolve("./topics.json");
 
   try {
-    const raw = await fs.readFile(filePath, "utf8");
+    const raw = await readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return fallbackTopics;
 

@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+import { writeFile, rm, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "./config.js";
 import { generateCoverPrompts } from "./covers.js";
@@ -8,7 +8,7 @@ import { loadTopics } from "./topics.js";
 import { synthesizeToFile } from "./tts.js";
 import { AppConfig, Scene, Topic } from "./types.js";
 import { composeVideo } from "./video.js";
-import { ensureDir, slugify } from "./utils.js";
+import { slugify } from "./utils.js";
 
 function pickTopic(topics: Topic[]): Topic {
   const requested = process.env.TOPIC_ID;
@@ -21,41 +21,50 @@ function pickTopic(topics: Topic[]): Topic {
 }
 
 async function writeJson(p: string, data: unknown) {
-  await fs.writeFile(p, JSON.stringify(data, null, 2), "utf8");
+  await writeFile(p, JSON.stringify(data, null, 2), "utf8");
 }
 
 async function cleanupIntermediates(cfg: AppConfig) {
   await Promise.allSettled([
-    fs.rm(path.join(cfg.outputDir, "audio"), { recursive: true, force: true }),
-    fs.rm(path.join(cfg.outputDir, "images"), { recursive: true, force: true }),
-    fs.rm(path.join(cfg.outputDir, "clips"), { recursive: true, force: true }),
-    fs.rm(path.join(cfg.outputDir, "concat.txt"), { force: true }),
+    rm(path.join(cfg.outputDir, "audio"), { recursive: true, force: true }),
+    rm(path.join(cfg.outputDir, "images"), { recursive: true, force: true }),
+    rm(path.join(cfg.outputDir, "clips"), { recursive: true, force: true }),
+    rm(path.join(cfg.outputDir, "concat.txt"), { force: true }),
   ]);
 }
 
 async function main() {
   const cfg = loadConfig();
-  await ensureDir(cfg.outputDir);
+  const {
+    outputDir,
+    cleanup,
+    totalDurationSec,
+    scenesCount,
+    providers: { llmScriptProvider, llmVisualProvider, ttsProvider, imageProvider },
+    ffmpegBin,
+  } = cfg;
+
+  await mkdir(outputDir, { recursive: true });
 
   const topics = await loadTopics();
   const topic = pickTopic(topics);
 
-  const metaDir = path.join(cfg.outputDir, "meta");
-  await ensureDir(metaDir);
+  const metaDir = path.join(outputDir, "meta");
+  await mkdir(metaDir, { recursive: true });
 
   await writeJson(path.join(metaDir, "topic.json"), topic);
 
   const scenes = await generateScript({
     topic,
-    scenesCount: cfg.scenesCount,
-    totalDurationSec: cfg.totalDurationSec,
-    provider: cfg.providers.llmScriptProvider,
+    scenesCount,
+    totalDurationSec,
+    provider: llmScriptProvider,
   });
 
-  const audioDir = path.join(cfg.outputDir, "audio");
-  const imagesDir = path.join(cfg.outputDir, "images");
-  await ensureDir(audioDir);
-  await ensureDir(imagesDir);
+  const audioDir = path.join(outputDir, "audio");
+  const imagesDir = path.join(outputDir, "images");
+  await mkdir(audioDir, { recursive: true });
+  await mkdir(imagesDir, { recursive: true });
 
   const enrichedScenes: Array<Scene & { audioPath: string; imagePath: string }> = [];
 
@@ -64,18 +73,18 @@ async function main() {
     const imagePath = path.join(imagesDir, `${scene.id}.png`);
 
     await synthesizeToFile({
-      provider: cfg.providers.ttsProvider,
+      provider: ttsProvider,
       text: scene.text,
       durationSec: scene.duration,
       outFile: audioPath,
-      ffmpegBin: cfg.ffmpegBin,
+      ffmpegBin,
     });
 
     await generateImageToFile({
-      provider: cfg.providers.imageProvider,
+      provider: imageProvider,
       prompt: scene.visual,
       outFile: imagePath,
-      ffmpegBin: cfg.ffmpegBin,
+      ffmpegBin,
     });
 
     enrichedScenes.push({ ...scene, audioPath, imagePath });
@@ -83,11 +92,14 @@ async function main() {
 
   await writeJson(path.join(metaDir, "script.json"), scenes);
 
-  const videoName = slugify(topic.title || topic.id) || "video";
+  const videoName = slugify(topic.title);
+  if (!videoName) {
+    throw new Error("Video name could not be generated from topic title");
+  }
 
   const coverPrompts = await generateCoverPrompts({
     topic,
-    provider: cfg.providers.llmVisualProvider,
+    provider: llmVisualProvider,
   });
 
   await writeJson(path.join(metaDir, "covers.json"), coverPrompts);
@@ -96,28 +108,28 @@ async function main() {
   const thumbnailPng = path.join(imagesDir, `${videoName}-thumbnail.png`);
 
   await generateImageToFile({
-    provider: cfg.providers.imageProvider,
+    provider: imageProvider,
     prompt: coverPrompts.previewPrompt,
     outFile: previewPng,
-    ffmpegBin: cfg.ffmpegBin,
+    ffmpegBin,
   });
 
   await generateImageToFile({
-    provider: cfg.providers.imageProvider,
+    provider: imageProvider,
     prompt: coverPrompts.thumbnailPrompt,
     outFile: thumbnailPng,
-    ffmpegBin: cfg.ffmpegBin,
+    ffmpegBin,
   });
 
-  const previewPath = path.join(cfg.outputDir, `${videoName}-preview.jpg`);
-  const thumbnailPath = path.join(cfg.outputDir, `${videoName}-thumbnail.jpg`);
+  const previewPath = path.join(outputDir, `${videoName}-preview.jpg`);
+  const thumbnailPath = path.join(outputDir, `${videoName}-thumbnail.jpg`);
 
-  await convertToJpg({ ffmpegBin: cfg.ffmpegBin, inFile: previewPng, outFile: previewPath });
-  await convertToJpg({ ffmpegBin: cfg.ffmpegBin, inFile: thumbnailPng, outFile: thumbnailPath });
+  await convertToJpg({ ffmpegBin, inFile: previewPng, outFile: previewPath });
+  await convertToJpg({ ffmpegBin, inFile: thumbnailPng, outFile: thumbnailPath });
 
   const video = await composeVideo({
-    ffmpegBin: cfg.ffmpegBin,
-    outDir: cfg.outputDir,
+    ffmpegBin,
+    outDir: outputDir,
     videoName,
     previewPath,
     thumbnailPath,
@@ -133,7 +145,7 @@ async function main() {
     video,
   });
 
-  if (cfg.cleanup) {
+  if (cleanup) {
     await cleanupIntermediates(cfg);
   }
 
@@ -142,7 +154,7 @@ async function main() {
   console.log(`- Video: ${video.videoPath}`);
   console.log(`- Preview: ${video.previewPath}`);
   console.log(`- Thumbnail: ${video.thumbnailPath}`);
-}
+};
 
 main().catch((err) => {
   console.error(err);

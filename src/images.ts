@@ -1,7 +1,6 @@
-import fs from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "./exec.js";
-import { ensureDir } from "./utils.js";
 
 export type ImageProvider = "openai" | "mock";
 
@@ -11,12 +10,12 @@ export async function generateImageToFile(params: {
   outFile: string;
   ffmpegBin: string;
 }): Promise<void> {
-  await ensureDir(path.dirname(params.outFile));
+  await mkdir(path.dirname(params.outFile), { recursive: true });
 
   if (params.provider === "openai") {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error("IMAGE_PROVIDER=openai, но не задан OPENAI_API_KEY");
+      throw new Error("OPENAI_API_KEY environment variable is required for openai image provider");
     }
 
     const res = await fetch("https://api.openai.com/v1/images/generations", {
@@ -26,10 +25,10 @@ export async function generateImageToFile(params: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1",
+        model: "gpt-image-1",
         prompt: params.prompt,
         n: 1,
-        size: process.env.OPENAI_IMAGE_SIZE ?? "1024x1024",
+        size: "1024x1024",
         response_format: "b64_json",
       }),
     });
@@ -45,7 +44,7 @@ export async function generateImageToFile(params: {
       throw new Error("OpenAI images: unexpected response (no b64_json)");
     }
 
-    await fs.writeFile(params.outFile, Buffer.from(b64, "base64"));
+    await writeFile(params.outFile, Buffer.from(b64, "base64"));
     return;
   }
 
@@ -67,7 +66,7 @@ export async function convertToJpg(params: {
   inFile: string;
   outFile: string;
 }): Promise<void> {
-  await ensureDir(path.dirname(params.outFile));
+  await mkdir(path.dirname(params.outFile), { recursive: true });
   await execFile(params.ffmpegBin, [
     "-y",
     "-i",

@@ -1,7 +1,6 @@
-import fs from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "./exec.js";
-import { ensureDir } from "./utils.js";
 
 export async function composeVideo(params: {
   ffmpegBin: string;
@@ -17,7 +16,7 @@ export async function composeVideo(params: {
   }>;
 }): Promise<{ videoPath: string; previewPath: string; thumbnailPath: string }> {
   const clipsDir = path.join(params.outDir, "clips");
-  await ensureDir(clipsDir);
+  await writeFile(clipsDir, "", "utf8");
 
   const clipPaths: string[] = [];
   for (const scene of params.scenes) {
@@ -51,7 +50,7 @@ export async function composeVideo(params: {
   const concatText = clipPaths
     .map((p) => `file '${p.replace(/'/g, "'\\''")}'`)
     .join("\n");
-  await fs.writeFile(concatFile, concatText, "utf8");
+  await writeFile(concatFile, concatText, "utf8");
 
   const videoPath = path.join(params.outDir, `${params.videoName}.mp4`);
   await execFile(params.ffmpegBin, [
