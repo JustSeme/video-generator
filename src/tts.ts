@@ -1,8 +1,9 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "./exec.js";
+import { ElevenLabsClient, ElevenLabsError } from "elevenlabs";
 
-export type TtsProvider = "elevenlabs" | "mock";
+export type TtsProvider = "elevenlabs";
 
 export async function synthesizeToFile(params: {
   provider: TtsProvider;
@@ -21,30 +22,31 @@ export async function synthesizeToFile(params: {
       throw new Error("ELEVENLABS_API_KEY environment variable is required for elevenlabs TTS provider");
     }
 
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify({
-        text: params.text,
+    try {
+      const client = new ElevenLabsClient({ apiKey, baseUrl: 'https://openrouter.ai/api/v1' });
+      const audioStream = await client.textToSpeech.convert(voiceId, {
         model_id: "eleven_multilingual_v2",
+        text: params.text,
         voice_settings: {
           stability: 0.4,
           similarity_boost: 0.8,
         },
-      }),
-    });
+      });
 
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`ElevenLabs error: ${res.status} ${res.statusText} ${t}`);
+      // Convert stream to buffer
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of audioStream) {
+        chunks.push(chunk);
+      }
+      const audioBuffer = Buffer.concat(chunks);
+      await writeFile(params.outFile, audioBuffer);
+    } catch (err) {
+      if (err instanceof ElevenLabsError) {
+        throw new Error(`ElevenLabs error: ${err.statusCode} ${err.message}`);
+      } else {
+        throw new Error(`Unknown error: ${err}`);
+      }
     }
-
-    const buf = Buffer.from(await res.arrayBuffer());
-    await writeFile(params.outFile, buf);
     return;
   }
 

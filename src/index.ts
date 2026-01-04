@@ -6,9 +6,9 @@ import { convertToJpg, generateImageToFile } from "./images.js";
 import { generateScript } from "./script.js";
 import { loadTopics } from "./topics.js";
 import { synthesizeToFile } from "./tts.js";
-import { AppConfig, Scene, Topic } from "./types.js";
+import { AppConfig, NeuralNetworkError, Scene, Topic } from "./types.js";
 import { composeVideo } from "./video.js";
-import { slugify } from "./utils.js";
+import { slugify, withRetry } from "./utils.js";
 
 function pickTopic(topics: Topic[]): Topic {
   const requested = process.env.TOPIC_ID;
@@ -54,12 +54,15 @@ async function main() {
 
   await writeJson(path.join(metaDir, "topic.json"), topic);
 
-  const scenes = await generateScript({
-    topic,
-    scenesCount,
-    totalDurationSec,
-    provider: llmScriptProvider,
-  });
+  const scenes = await withRetry(
+    () => generateScript({
+      topic,
+      scenesCount,
+      totalDurationSec,
+      provider: llmScriptProvider,
+    }),
+    `script-generation-${llmScriptProvider}`
+  );
 
   const audioDir = path.join(outputDir, "audio");
   const imagesDir = path.join(outputDir, "images");
@@ -72,20 +75,28 @@ async function main() {
     const audioPath = path.join(audioDir, `${scene.id}.mp3`);
     const imagePath = path.join(imagesDir, `${scene.id}.png`);
 
-    await synthesizeToFile({
-      provider: ttsProvider,
-      text: scene.text,
-      durationSec: scene.duration,
-      outFile: audioPath,
-      ffmpegBin,
-    });
+    console.log("Scene:", JSON.stringify(scene, null, 2));
 
-    await generateImageToFile({
-      provider: imageProvider,
-      prompt: scene.visual,
-      outFile: imagePath,
-      ffmpegBin,
-    });
+    await withRetry(
+      () => synthesizeToFile({
+        provider: ttsProvider,
+        text: scene.text,
+        durationSec: scene.duration,
+        outFile: audioPath,
+        ffmpegBin,
+      }),
+      `tts-${ttsProvider}-scene-${scene.id}`
+    );
+
+    await withRetry(
+      () => generateImageToFile({
+        provider: imageProvider,
+        prompt: scene.visual,
+        outFile: imagePath,
+        ffmpegBin,
+      }),
+      `image-${imageProvider}-scene-${scene.id}`
+    );
 
     enrichedScenes.push({ ...scene, audioPath, imagePath });
   }
@@ -97,29 +108,38 @@ async function main() {
     throw new Error("Video name could not be generated from topic title");
   }
 
-  const coverPrompts = await generateCoverPrompts({
-    topic,
-    provider: llmVisualProvider,
-  });
+  const coverPrompts = await withRetry(
+    () => generateCoverPrompts({
+      topic,
+      provider: llmVisualProvider,
+    }),
+    `cover-prompts-${llmVisualProvider}`
+  );
 
   await writeJson(path.join(metaDir, "covers.json"), coverPrompts);
 
   const previewPng = path.join(imagesDir, `${videoName}-preview.png`);
   const thumbnailPng = path.join(imagesDir, `${videoName}-thumbnail.png`);
 
-  await generateImageToFile({
-    provider: imageProvider,
-    prompt: coverPrompts.previewPrompt,
-    outFile: previewPng,
-    ffmpegBin,
-  });
+  await withRetry(
+    () => generateImageToFile({
+      provider: imageProvider,
+      prompt: coverPrompts.previewPrompt,
+      outFile: previewPng,
+      ffmpegBin,
+    }),
+    `image-${imageProvider}-preview`
+  );
 
-  await generateImageToFile({
-    provider: imageProvider,
-    prompt: coverPrompts.thumbnailPrompt,
-    outFile: thumbnailPng,
-    ffmpegBin,
-  });
+  await withRetry(
+    () => generateImageToFile({
+      provider: imageProvider,
+      prompt: coverPrompts.thumbnailPrompt,
+      outFile: thumbnailPng,
+      ffmpegBin,
+    }),
+    `image-${imageProvider}-thumbnail`
+  );
 
   const previewPath = path.join(outputDir, `${videoName}-preview.jpg`);
   const thumbnailPath = path.join(outputDir, `${videoName}-thumbnail.jpg`);
@@ -157,6 +177,16 @@ async function main() {
 };
 
 main().catch((err) => {
-  console.error(err);
+  if (err instanceof NeuralNetworkError) {
+    console.error(`\n❌ Neural Network Error (${err.provider}):`);
+    console.error(err.message);
+    if (err.originalError) {
+      console.error('\nOriginal error:');
+      console.error(err.originalError.message);
+    }
+  } else {
+    console.error('\n❌ Unexpected error:');
+    console.error(err);
+  }
   process.exitCode = 1;
 });

@@ -4,14 +4,15 @@ import { getChatModel } from "./llm.js";
 import { Scene, Topic } from "./types.js";
 
 const SceneSchema = z.object({
-  id: z.string(),
   title: z.string(),
   text: z.string(),
   visual: z.string(),
   duration: z.number(),
 });
 
-const ScenesSchema = z.array(SceneSchema);
+const ScenesSchema = z.object({
+  scenes: z.array(SceneSchema),
+});
 
 function normalizeDurations(scenes: Scene[], totalDurationSec: number): Scene[] {
   const safeScenes = scenes.map((s) => ({ ...s, duration: Math.max(3, Math.round(s.duration)) }));
@@ -48,23 +49,24 @@ export async function generateScript(params: {
   const structured = model.withStructuredOutput(ScenesSchema);
 
   const system =
-    "Ты профессиональный сценарист коротких вертикальных видео (Reels/Shorts). " +
-    "Пиши по-русски, делай динамичный темп, добавляй конкретные примеры и микроконфликт. " +
-    "Каждая сцена: title (заголовок кадра), text (озвучка 1-3 предложения), " +
-    "visual (точное описание картинки/кадра для генерации), duration (секунды).";
+    "You are a professional screenwriter for YouTube videos." +
+    "Write in English, in dynamic tempo, add specific examples and micro-conflicts. " +
+    "Each scene: title (short descriptive title), text (audio of up to 3 sentences), " +
+    "visual (specific description of an image, carefully selected to match the scene for visual accompaniment to convey atmosphere and key elements of the scene), " +
+    "duration (seconds, how long the scene will last).";
 
   const user =
-    `Тема: ${params.topic.title}\n` +
-    `Описание: ${params.topic.description}\n\n` +
-    `Сгенерируй сценарий из ${params.scenesCount} сцен на суммарную длительность ~${params.totalDurationSec} секунд. ` +
-    "Верни строго массив объектов сцен.";
+    `Topic: ${params.topic.title}\n` +
+    `Description: ${params.topic.description}\n\n` +
+    `Generate a script of ${params.scenesCount} scenes with a total duration of approximately ${params.totalDurationSec} seconds. ` +
+    "Return a JSON object with a 'scenes' property containing an array of scene objects.";
 
-  const rawScenes = (await structured.invoke([
+  const rawResponse = (await structured.invoke([
     { role: "system", content: system },
     { role: "user", content: user },
   ])) as z.infer<typeof ScenesSchema>;
 
-  const scenes: Scene[] = rawScenes.map((s: z.infer<typeof SceneSchema>) => ({
+  const scenes: Scene[] = rawResponse.scenes.map((s: z.infer<typeof SceneSchema>) => ({
     ...s,
     id: randomUUID(),
   }));

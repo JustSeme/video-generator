@@ -27,3 +27,10 @@ export type AppConfig = {
   cleanup: boolean;
   providers: ProvidersConfig;
 };
+
+export class NeuralNetworkError extends Error {
+  constructor(message: string, public readonly provider: string, public readonly originalError?: Error) {
+    super(message);
+    this.name = 'NeuralNetworkError';
+  }
+}
