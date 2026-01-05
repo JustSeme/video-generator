@@ -3,22 +3,11 @@ import path from "node:path";
 import { loadConfig } from "./config.js";
 import { generateCoverPrompts } from "./covers.js";
 import { convertToJpg, generateImageToFile } from "./images.js";
-import { generateScript } from "./script.js";
-import { loadTopics } from "./topics.js";
+import { generateScenes } from "./scenes.js";
 import { synthesizeToFile } from "./tts.js";
 import { AppConfig, NeuralNetworkError, Scene, Topic } from "./types.js";
 import { composeVideo } from "./video.js";
 import { slugify, withRetry } from "./utils.js";
-
-function pickTopic(topics: Topic[]): Topic {
-  const requested = process.env.TOPIC_ID;
-  if (requested) {
-    const found = topics.find((t) => t.id === requested);
-    if (found) return found;
-  }
-
-  return topics[Math.floor(Math.random() * topics.length)];
-}
 
 async function writeJson(p: string, data: unknown) {
   await writeFile(p, JSON.stringify(data, null, 2), "utf8");
@@ -42,27 +31,31 @@ async function main() {
     scenesCount,
     providers: { llmScriptProvider, llmVisualProvider, ttsProvider, imageProvider },
     ffmpegBin,
+    topicTitle,
+    topicDescription
   } = cfg;
 
   await mkdir(outputDir, { recursive: true });
 
-  const topics = await loadTopics();
-  const topic = pickTopic(topics);
+  const topic = {
+    title: topicTitle,
+    description: topicDescription
+  };
 
   const metaDir = path.join(outputDir, "meta");
   await mkdir(metaDir, { recursive: true });
 
-  await writeJson(path.join(metaDir, "topic.json"), topic);
-
   const scenes = await withRetry(
-    () => generateScript({
+    () => generateScenes(
       topic,
       scenesCount,
       totalDurationSec,
-      provider: llmScriptProvider,
-    }),
-    `script-generation-${llmScriptProvider}`
+      llmScriptProvider
+    ),
+    `scenes-generation-${llmScriptProvider}`
   );
+
+  await writeJson(path.join(metaDir, "scenes.json"), scenes);
 
   const audioDir = path.join(outputDir, "audio");
   const imagesDir = path.join(outputDir, "images");
@@ -75,9 +68,17 @@ async function main() {
     const audioPath = path.join(audioDir, `${scene.id}.mp3`);
     const imagePath = path.join(imagesDir, `${scene.id}.png`);
 
-    console.log("Scene:", JSON.stringify(scene, null, 2));
-
     await withRetry(
+      () => generateImageToFile(
+        imageProvider,
+        scene.visual,
+        imagePath,
+        ffmpegBin,
+      ),
+      `image-${imageProvider}-scene-${scene.id}`
+    );
+
+    /* await withRetry(
       () => synthesizeToFile({
         provider: ttsProvider,
         text: scene.text,
@@ -86,22 +87,10 @@ async function main() {
         ffmpegBin,
       }),
       `tts-${ttsProvider}-scene-${scene.id}`
-    );
-
-    await withRetry(
-      () => generateImageToFile({
-        provider: imageProvider,
-        prompt: scene.visual,
-        outFile: imagePath,
-        ffmpegBin,
-      }),
-      `image-${imageProvider}-scene-${scene.id}`
-    );
+    ); */
 
     enrichedScenes.push({ ...scene, audioPath, imagePath });
   }
-
-  await writeJson(path.join(metaDir, "script.json"), scenes);
 
   const videoName = slugify(topic.title);
   if (!videoName) {
@@ -122,30 +111,30 @@ async function main() {
   const thumbnailPng = path.join(imagesDir, `${videoName}-thumbnail.png`);
 
   await withRetry(
-    () => generateImageToFile({
-      provider: imageProvider,
-      prompt: coverPrompts.previewPrompt,
-      outFile: previewPng,
+    () => generateImageToFile(
+      imageProvider,
+      coverPrompts.previewPrompt,
+      previewPng,
       ffmpegBin,
-    }),
+    ),
     `image-${imageProvider}-preview`
   );
 
   await withRetry(
-    () => generateImageToFile({
-      provider: imageProvider,
-      prompt: coverPrompts.thumbnailPrompt,
-      outFile: thumbnailPng,
+    () => generateImageToFile(
+      imageProvider,
+      coverPrompts.thumbnailPrompt,
+      thumbnailPng,
       ffmpegBin,
-    }),
+    ),
     `image-${imageProvider}-thumbnail`
   );
 
   const previewPath = path.join(outputDir, `${videoName}-preview.jpg`);
   const thumbnailPath = path.join(outputDir, `${videoName}-thumbnail.jpg`);
 
-  await convertToJpg({ ffmpegBin, inFile: previewPng, outFile: previewPath });
-  await convertToJpg({ ffmpegBin, inFile: thumbnailPng, outFile: thumbnailPath });
+  await convertToJpg(ffmpegBin, previewPng, previewPath);
+  await convertToJpg(ffmpegBin, thumbnailPng, thumbnailPath);
 
   const video = await composeVideo({
     ffmpegBin,

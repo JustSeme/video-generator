@@ -1,5 +1,4 @@
 export type Topic = {
-  id: string;
   title: string;
   description: string;
 };
@@ -20,6 +19,8 @@ export type ProvidersConfig = {
 };
 
 export type AppConfig = {
+  topicTitle: string;
+  topicDescription: string;
   outputDir: string;
   ffmpegBin: string;
   totalDurationSec: number;

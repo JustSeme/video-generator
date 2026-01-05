@@ -4,15 +4,15 @@ import { execFile } from "./exec.js";
 
 export type ImageProvider = "openai" | "mock";
 
-export async function generateImageToFile(params: {
-  provider: ImageProvider;
-  prompt: string;
-  outFile: string;
-  ffmpegBin: string;
-}): Promise<void> {
-  await mkdir(path.dirname(params.outFile), { recursive: true });
+export async function generateImageToFile(
+  provider: ImageProvider,
+  prompt: string,
+  outFile: string,
+  ffmpegBin: string
+): Promise<void> {
+  await mkdir(path.dirname(outFile), { recursive: true });
 
-  if (params.provider === "openai") {
+  if (provider === "openai") {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY environment variable is required for openai image provider");
@@ -26,7 +26,7 @@ export async function generateImageToFile(params: {
       },
       body: JSON.stringify({
         model: "gpt-image-1",
-        prompt: params.prompt,
+        prompt,
         n: 1,
         size: "1024x1024",
         response_format: "b64_json",
@@ -44,12 +44,12 @@ export async function generateImageToFile(params: {
       throw new Error("OpenAI images: unexpected response (no b64_json)");
     }
 
-    await writeFile(params.outFile, Buffer.from(b64, "base64"));
+    await writeFile(outFile, Buffer.from(b64, "base64"));
     return;
   }
 
   // mock: generate a simple colored frame
-  await execFile(params.ffmpegBin, [
+  await execFile(ffmpegBin, [
     "-y",
     "-f",
     "lavfi",
@@ -57,24 +57,24 @@ export async function generateImageToFile(params: {
     "color=c=0x111111:s=1280x720",
     "-frames:v",
     "1",
-    params.outFile,
+    outFile,
   ]);
 }
 
-export async function convertToJpg(params: {
-  ffmpegBin: string;
-  inFile: string;
-  outFile: string;
-}): Promise<void> {
-  await mkdir(path.dirname(params.outFile), { recursive: true });
-  await execFile(params.ffmpegBin, [
+export async function convertToJpg(
+  ffmpegBin: string,
+  inFile: string,
+  outFile: string
+): Promise<void> {
+  await mkdir(path.dirname(outFile), { recursive: true });
+  await execFile(ffmpegBin, [
     "-y",
     "-i",
-    params.inFile,
+    inFile,
     "-frames:v",
     "1",
     "-q:v",
     "2",
-    params.outFile,
+    outFile,
   ]);
 }

@@ -39,27 +39,28 @@ function normalizeDurations(scenes: Scene[], totalDurationSec: number): Scene[] 
   return scaled;
 }
 
-export async function generateScript(params: {
-  topic: Topic;
-  scenesCount: number;
-  totalDurationSec: number;
-  provider: "openai" | "anthropic";
-}): Promise<Scene[]> {
-  const model = getChatModel(params.provider);
+export async function generateScenes(
+  topic: Topic,
+  scenesCount: number,
+  totalDurationSec: number,
+  provider: "openai" | "anthropic"
+): Promise<Scene[]> {
+  const model = getChatModel(provider);
   const structured = model.withStructuredOutput(ScenesSchema);
 
   const system =
-    "You are a professional screenwriter for YouTube videos." +
-    "Write in English, in dynamic tempo, add specific examples and micro-conflicts. " +
-    "Each scene: title (short descriptive title), text (audio of up to 3 sentences), " +
-    "visual (specific description of an image, carefully selected to match the scene for visual accompaniment to convey atmosphere and key elements of the scene), " +
-    "duration (seconds, how long the scene will last).";
+    "You are a professional screenwriter for YouTube videos. " +
+    "Write a coherent narrative about the topic: " + topic.title + " with logical transitions between scenes. " +
+    "Each scene should have: a clear title, engaging text (up to 3 sentences), " +
+    "A detailed prompt for creating a static image that describes the narrative in a given scene, named 'visual'. " +
+    "The visual prompt should be descriptive and suitable for image generation.";
 
   const user =
-    `Topic: ${params.topic.title}\n` +
-    `Description: ${params.topic.description}\n\n` +
-    `Generate a script of ${params.scenesCount} scenes with a total duration of approximately ${params.totalDurationSec} seconds. ` +
-    "Return a JSON object with a 'scenes' property containing an array of scene objects.";
+    `Topic: ${topic.title}\n` +
+    `Description: ${topic.description}\n\n` +
+    `Generate a video script for YouTube of ${scenesCount} scenes with a total duration of approximately ${totalDurationSec} seconds. ` +
+    "Return a JSON object with a 'scenes' property containing an array of scene objects. " +
+    "Scene object should contain only the title, text, visual, and duration fields.";
 
   const rawResponse = (await structured.invoke([
     { role: "system", content: system },
@@ -71,5 +72,5 @@ export async function generateScript(params: {
     id: randomUUID(),
   }));
 
-  return normalizeDurations(scenes, params.totalDurationSec);
+  return normalizeDurations(scenes, totalDurationSec);
 }

@@ -1,9 +1,9 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { execFile } from "./exec.js";
+import { execFile, execFileWithOutput } from "./exec.js";
 import { ElevenLabsClient, ElevenLabsError } from "elevenlabs";
 
-export type TtsProvider = "elevenlabs";
+export type TtsProvider = "elevenlabs" | "vibevoice";
 
 export async function synthesizeToFile(params: {
   provider: TtsProvider;
@@ -13,6 +13,25 @@ export async function synthesizeToFile(params: {
   ffmpegBin: string;
 }): Promise<void> {
   await mkdir(path.dirname(params.outFile), { recursive: true });
+
+  if (params.provider === "vibevoice") {
+    try {
+      const { stdout } = await execFileWithOutput("python", [
+        "vibevoice_tts.py",
+        "--text", params.text,
+        "--speaker", "Alice", // можно сделать параметром
+        "--output", params.outFile
+      ]);
+      
+      const result = JSON.parse(stdout);
+      if (!result.success) {
+        throw new Error(`VibeVoice error: ${result.error}`);
+      }
+    } catch (err) {
+      throw new Error(`VibeVoice synthesis failed: ${err}`);
+    }
+    return;
+  }
 
   if (params.provider === "elevenlabs") {
     const apiKey = process.env.ELEVENLABS_API_KEY;
