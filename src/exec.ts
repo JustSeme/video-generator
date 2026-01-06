@@ -21,38 +21,3 @@ export async function execFile(
     });
   });
 }
-
-export async function execFileWithOutput(
-  file: string,
-  args: string[],
-  opts?: {
-    cwd?: string;
-  },
-): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(file, args, {
-      cwd: opts?.cwd,
-      shell: false,
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.on("data", (data) => {
-      stdout += data.toString();
-    });
-
-    child.stderr?.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    child.on("error", reject);
-    child.on("exit", (code: number | null) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        reject(new Error(`${file} exited with code ${code ?? "null"}: ${stderr}`));
-      }
-    });
-  });
-}

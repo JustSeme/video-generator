@@ -1,39 +1,20 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { execFile, execFileWithOutput } from "./exec.js";
+import { execFile } from "./exec.js";
 import { ElevenLabsClient, ElevenLabsError } from "elevenlabs";
 
-export type TtsProvider = "elevenlabs" | "vibevoice";
+export type TtsProvider = "elevenlabs";
 
-export async function synthesizeToFile(params: {
-  provider: TtsProvider;
-  text: string;
-  durationSec: number;
-  outFile: string;
-  ffmpegBin: string;
-}): Promise<void> {
-  await mkdir(path.dirname(params.outFile), { recursive: true });
+export async function synthesizeToFile(
+  provider: TtsProvider,
+  text: string,
+  durationSec: number,
+  outFile: string,
+  ffmpegBin: string,
+): Promise<void> {
+  await mkdir(path.dirname(outFile), { recursive: true });
 
-  if (params.provider === "vibevoice") {
-    try {
-      const { stdout } = await execFileWithOutput("python", [
-        "vibevoice_tts.py",
-        "--text", params.text,
-        "--speaker", "Alice", // можно сделать параметром
-        "--output", params.outFile
-      ]);
-      
-      const result = JSON.parse(stdout);
-      if (!result.success) {
-        throw new Error(`VibeVoice error: ${result.error}`);
-      }
-    } catch (err) {
-      throw new Error(`VibeVoice synthesis failed: ${err}`);
-    }
-    return;
-  }
-
-  if (params.provider === "elevenlabs") {
+  if (provider === "elevenlabs") {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
 
@@ -45,7 +26,7 @@ export async function synthesizeToFile(params: {
       const client = new ElevenLabsClient({ apiKey, baseUrl: 'https://openrouter.ai/api/v1' });
       const audioStream = await client.textToSpeech.convert(voiceId, {
         model_id: "eleven_multilingual_v2",
-        text: params.text,
+        text,
         voice_settings: {
           stability: 0.4,
           similarity_boost: 0.8,
@@ -58,7 +39,7 @@ export async function synthesizeToFile(params: {
         chunks.push(chunk);
       }
       const audioBuffer = Buffer.concat(chunks);
-      await writeFile(params.outFile, audioBuffer);
+      await writeFile(outFile, audioBuffer);
     } catch (err) {
       if (err instanceof ElevenLabsError) {
         throw new Error(`ElevenLabs error: ${err.statusCode} ${err.message}`);
@@ -70,18 +51,18 @@ export async function synthesizeToFile(params: {
   }
 
   // mock: generate silent audio with requested duration
-  await execFile(params.ffmpegBin, [
+  await execFile(ffmpegBin, [
     "-y",
     "-f",
     "lavfi",
     "-i",
     `anullsrc=r=44100:cl=stereo`,
     "-t",
-    `${params.durationSec}`,
+    `${durationSec}`,
     "-q:a",
     "9",
     "-acodec",
     "libmp3lame",
-    params.outFile,
+    outFile,
   ]);
 }
