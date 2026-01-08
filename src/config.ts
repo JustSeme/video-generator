@@ -18,7 +18,7 @@ export function loadConfig(): AppConfig {
     providers: {
       llmScriptProvider: "openai",
       llmVisualProvider: "anthropic",
-      ttsProvider: "elevenlabs",
+      ttsProvider: "coqui",
       imageProvider: "openai",
     },
   };

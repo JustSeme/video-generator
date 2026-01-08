@@ -1,9 +1,14 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { execFile } from "./exec.js";
+import { fileURLToPath } from "node:url";
+import { execFile, execFileWithOutput } from "./exec.js";
 import { ElevenLabsClient, ElevenLabsError } from "elevenlabs";
 
-export type TtsProvider = "elevenlabs";
+export type TtsProvider = "elevenlabs" | "coqui";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "..");
 
 export async function synthesizeToFile(
   provider: TtsProvider,
@@ -13,6 +18,30 @@ export async function synthesizeToFile(
   ffmpegBin: string,
 ): Promise<void> {
   await mkdir(path.dirname(outFile), { recursive: true });
+
+  if (provider === "coqui") {
+    try {
+      const speakerVoicePath = path.join(projectRoot, "python/temp", "speaker.wav");
+      const scriptPath = path.join(projectRoot, "python", "coqui_tts.py");
+
+      const { stdout } = await execFileWithOutput("python", [
+        "-X",
+        "utf8",
+        scriptPath,
+        "--text", text,
+        "--output", path.resolve(outFile),
+        "--speaker_voice", speakerVoicePath
+      ], { cwd: projectRoot });
+
+      const result = JSON.parse(stdout);
+      if (!result.success) {
+        throw new Error(`Coqui TTS error: ${result.error}`);
+      }
+    } catch (err) {
+      throw new Error(`Coqui TTS synthesis failed: ${err}`);
+    }
+    return;
+  }
 
   if (provider === "elevenlabs") {
     const apiKey = process.env.ELEVENLABS_API_KEY;

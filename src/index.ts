@@ -65,10 +65,10 @@ async function main() {
   const enrichedScenes: Array<Scene & { audioPath: string; imagePath: string }> = [];
 
   for (const scene of scenes) {
-    const audioPath = path.join(audioDir, `${scene.id}.mp3`);
+    const audioPath = path.join(audioDir, `${scene.id}.wav`);
     const imagePath = path.join(imagesDir, `${scene.id}.png`);
 
-    await withRetry(
+    /* await withRetry(
       () => generateImageToFile(
         imageProvider,
         scene.visual,
@@ -76,18 +76,18 @@ async function main() {
         ffmpegBin,
       ),
       `image-${imageProvider}-scene-${scene.id}`
-    );
-
-    /* await withRetry(
-      () => synthesizeToFile({
-        provider: ttsProvider,
-        text: scene.text,
-        durationSec: scene.duration,
-        outFile: audioPath,
-        ffmpegBin,
-      }),
-      `tts-${ttsProvider}-scene-${scene.id}`
     ); */
+
+    await withRetry(
+      () => synthesizeToFile(
+        ttsProvider,
+        scene.text,
+        scene.duration,
+        audioPath,
+        ffmpegBin,
+      ),
+      `tts-${ttsProvider}-scene-${scene.id}`
+    );
 
     enrichedScenes.push({ ...scene, audioPath, imagePath });
   }
