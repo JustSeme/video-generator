@@ -8,8 +8,8 @@ export function loadConfig(): AppConfig {
     : path.resolve("./out");
 
   return {
-    topicTitle: 'Когнитивная нагрузка в программировании',
-    topicDescription: 'Короткий ролик про то, как когнитивная нагрузка влияет на продуктивность разработчиков и как с ней бороться в повседневной работе.',
+    topicTitle: 'История Анатолии и Балкан 14-15 веков',
+    topicDescription: 'Короткий ролик про историю Анатолии и Балкан в 14-15 веках.',
     outputDir,
     ffmpegBin: "ffmpeg",
     totalDurationSec: 60,
@@ -19,7 +19,7 @@ export function loadConfig(): AppConfig {
       llmScriptProvider: "openai",
       llmVisualProvider: "anthropic",
       ttsProvider: "coqui",
-      imageProvider: "openai",
+      imageProvider: "google",
     },
   };
 }

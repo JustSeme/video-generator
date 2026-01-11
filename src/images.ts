@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "./exec.js";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { HumanMessage } from "@langchain/core/messages";
 
-export type ImageProvider = "openai" | "mock";
+export type ImageProvider = "google";
 
 export async function generateImageToFile(
   provider: ImageProvider,
@@ -12,36 +14,65 @@ export async function generateImageToFile(
 ): Promise<void> {
   await mkdir(path.dirname(outFile), { recursive: true });
 
-  if (provider === "openai") {
-    const apiKey = process.env.OPENAI_API_KEY;
+  if (provider === "google") {
+    const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY environment variable is required for openai image provider");
+      throw new Error(
+        "GOOGLE_API_KEY environment variable is required for nano-banana image generation"
+      );
     }
 
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const model = new ChatGoogleGenerativeAI({
+      apiKey,
+      configuration: {
+        baseURL: process.env.OPENROUTER_BASE_URL,
       },
-      body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt,
-        n: 1,
-        size: "1024x1024",
-        response_format: "b64_json",
-      }),
-    });
+      model: "gemini-2.5-flash-image",
+    } as any);
 
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`OpenAI images error: ${res.status} ${res.statusText} ${t}`);
+    const res = await model.invoke([
+      new HumanMessage({
+        content: [{ type: "text", text: prompt }],
+      }),
+    ], {
+      generationConfig: {
+        responseModalities: ["TEXT", "IMAGE"],
+      },
+    } as any);
+
+    const content = (res as any)?.content;
+    let imageUrl: string | undefined;
+
+    if (Array.isArray(content)) {
+      for (const item of content) {
+        if (!item || typeof item !== "object") continue;
+
+        const anyItem = item as any;
+        if (typeof anyItem?.image_url === "string") {
+          imageUrl = anyItem.image_url;
+          break;
+        }
+
+        if (typeof anyItem?.image_url?.url === "string") {
+          imageUrl = anyItem.image_url.url;
+          break;
+        }
+
+        if (anyItem?.type === "image_url" && typeof anyItem?.image_url === "string") {
+          imageUrl = anyItem.image_url;
+          break;
+        }
+
+        if (anyItem?.type === "image_url" && typeof anyItem?.image_url?.url === "string") {
+          imageUrl = anyItem.image_url.url;
+          break;
+        }
+      }
     }
 
-    const json = (await res.json()) as any;
-    const b64 = json?.data?.[0]?.b64_json;
-    if (typeof b64 !== "string") {
-      throw new Error("OpenAI images: unexpected response (no b64_json)");
+    const b64 = typeof imageUrl === "string" ? imageUrl.split(",").pop() : undefined;
+    if (typeof b64 !== "string" || !b64) {
+      throw new Error("Nano Banana images: unexpected response (no image_url base64)");
     }
 
     await writeFile(outFile, Buffer.from(b64, "base64"));

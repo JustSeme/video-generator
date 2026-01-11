@@ -15,7 +15,7 @@ export type ProvidersConfig = {
   llmScriptProvider: "openai" | "anthropic";
   llmVisualProvider: "openai" | "anthropic";
   ttsProvider: "elevenlabs" | "coqui";
-  imageProvider: "openai";
+  imageProvider: "google";
 };
 
 export type AppConfig = {

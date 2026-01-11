@@ -69,16 +69,6 @@ async function main() {
     const imagePath = path.join(imagesDir, `${scene.id}.png`);
 
     /* await withRetry(
-      () => generateImageToFile(
-        imageProvider,
-        scene.visual,
-        imagePath,
-        ffmpegBin,
-      ),
-      `image-${imageProvider}-scene-${scene.id}`
-    ); */
-
-    await withRetry(
       () => synthesizeToFile(
         ttsProvider,
         scene.text,
@@ -87,6 +77,16 @@ async function main() {
         ffmpegBin,
       ),
       `tts-${ttsProvider}-scene-${scene.id}`
+    ); */
+
+    await withRetry(
+      () => generateImageToFile(
+        imageProvider,
+        scene.visual,
+        imagePath,
+        ffmpegBin,
+      ),
+      `image-${imageProvider}-scene-${scene.id}`
     );
 
     enrichedScenes.push({ ...scene, audioPath, imagePath });
@@ -110,7 +110,7 @@ async function main() {
   const previewPng = path.join(imagesDir, `${videoName}-preview.png`);
   const thumbnailPng = path.join(imagesDir, `${videoName}-thumbnail.png`);
 
-  await withRetry(
+  /* await withRetry(
     () => generateImageToFile(
       imageProvider,
       coverPrompts.previewPrompt,
@@ -128,7 +128,7 @@ async function main() {
       ffmpegBin,
     ),
     `image-${imageProvider}-thumbnail`
-  );
+  ); */
 
   const previewPath = path.join(outputDir, `${videoName}-preview.jpg`);
   const thumbnailPath = path.join(outputDir, `${videoName}-thumbnail.jpg`);

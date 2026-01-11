@@ -52,7 +52,7 @@ export async function synthesizeToFile(
     }
 
     try {
-      const client = new ElevenLabsClient({ apiKey, baseUrl: 'https://openrouter.ai/api/v1' });
+      const client = new ElevenLabsClient({ apiKey, baseUrl: process.env.OPENROUTER_BASE_URL });
       const audioStream = await client.textToSpeech.convert(voiceId, {
         model_id: "eleven_multilingual_v2",
         text,
